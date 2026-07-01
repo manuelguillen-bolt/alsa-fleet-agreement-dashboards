@@ -53,12 +53,12 @@ Para restringir a Fleet Owners hace falta hosting con login (Pages privado Enter
 ## Fuentes de datos (validadas vs snapshot 2026-06-22)
 
 - `main.ng_public.etl_partner_data` — viajes, GMV y online hours por día/entidad
-- `main.core_models.fact_driver_state_log` — estados del conductor (peak hours)
+- `main.ng_public.etl_partner_data_order` — mismas métricas por hora (misma fuente que el Look de conexión por hora en Looker); se usa para las peak hours
 
 Mapeo: `finished`=SUM(finished_rides), `dispatched`=SUM(order_tries_count),
 `driver_cancelled`=SUM(driver_rejections_tries), `gmv`=SUM(gmv_eur),
-`oh`=SUM((has_order+waiting_orders)/60), `peak_hours`=online intersectado con ventanas del contrato.
-MM (112579) por `driver_car_id`/`car_id`; IBL (108683) por `driver_id`.
+`oh`=SUM((has_order+waiting_orders)/60), `peak_hours`=igual pero solo en las horas dentro de las ventanas punta del contrato (grano horario).
+MM (112579) por `driver_car_id`; IBL (108683) por `driver_id`. Validado: online reconcilia con etl_partner_data y peak ≤ online en todos los coches.
 
 ## Estado
 
