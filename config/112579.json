@@ -1,0 +1,161 @@
+{
+  "id": 112579,
+  "CONTRACT": {
+    "company": "MOVILIDAD MULTIMODAL SOCIEDAD LIMITADA",
+    "id": 112579,
+    "guaranteedNetEPH": 28,
+    "commission": 0.25,
+    "vat": 0.1,
+    "minPeakHours": 32,
+    "minCR": 85
+  },
+  "PEAK_HOURS": {
+    "Monday": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "Thursday": [
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ],
+    "Friday": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ],
+    "Saturday": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ],
+    "Sunday": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ]
+  },
+  "MONTHS": {
+    "june": {
+      "label": "June 2026",
+      "weeks": [
+        {
+          "label": "W23",
+          "start": "2026-06-01",
+          "end": "2026-06-07",
+          "complete": true,
+          "inProgress": false
+        },
+        {
+          "label": "W24",
+          "start": "2026-06-08",
+          "end": "2026-06-14",
+          "complete": true,
+          "inProgress": false
+        },
+        {
+          "label": "W25",
+          "start": "2026-06-15",
+          "end": "2026-06-21",
+          "complete": true,
+          "inProgress": false
+        },
+        {
+          "label": "W26",
+          "start": "2026-06-22",
+          "end": "2026-06-28",
+          "complete": false,
+          "inProgress": true
+        }
+      ]
+    },
+    "july": {
+      "label": "July 2026",
+      "weeks": [
+        {
+          "label": "W27",
+          "start": "2026-06-29",
+          "end": "2026-07-05",
+          "complete": false,
+          "inProgress": false
+        },
+        {
+          "label": "W28",
+          "start": "2026-07-06",
+          "end": "2026-07-12",
+          "complete": false,
+          "inProgress": false
+        },
+        {
+          "label": "W29",
+          "start": "2026-07-13",
+          "end": "2026-07-19",
+          "complete": false,
+          "inProgress": false
+        },
+        {
+          "label": "W30",
+          "start": "2026-07-20",
+          "end": "2026-07-26",
+          "complete": false,
+          "inProgress": false
+        }
+      ]
+    }
+  },
+  "VEHICLE_PLATES": {
+    "6359719": "1023-KTR",
+    "6360406": "5293-KTR",
+    "6363356": "1660-KTR",
+    "9047187": "0218-NCR",
+    "9047202": "0221-NCR",
+    "9047265": "0228-NCR",
+    "9047342": "0215-NCR",
+    "9047358": "0224-NCR",
+    "9047371": "0219-NCR",
+    "9047447": "0227-NCR",
+    "9047467": "0214-NCR",
+    "9047546": "0232-NCR",
+    "9398219": "0230-NCR",
+    "9398222": "0234-NCR",
+    "9398224": "0236-NCR",
+    "9398225": "0238-NCR",
+    "9398226": "5588-NCY",
+    "9412507": "0758-LPD",
+    "9426542": "Unknown",
+    "9798459": "6125-NFR",
+    "10215608": "6768-MDW",
+    "10217959": "6762-MDW",
+    "10223256": "6769-MDW"
+  }
+}

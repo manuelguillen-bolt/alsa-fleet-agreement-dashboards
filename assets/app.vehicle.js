@@ -1,0 +1,1753 @@
+const {
+  useState,
+  useMemo,
+  useRef,
+  useEffect
+} = React;
+const {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} = Recharts;
+// ─── BRAND ───────────────────────────────────────────────────────────────────
+const C = {
+  dark: "#0C2C1C",
+  green: "#2A9C64",
+  white: "#FFFFFF",
+  black: "#000000",
+  border: "#C5DAD0",
+  muted: "#4B6B59",
+  bg: "#F5F9F6",
+  ga20: "rgba(42,156,100,0.20)",
+  ga08: "rgba(42,156,100,0.08)",
+  amber: "#B45309",
+  amberBg: "#FEF3C7",
+  red: "#C0392B",
+  blue: "#1D6FA8"
+};
+const ff = {
+  fontFamily: "Inter, -apple-system, sans-serif"
+};
+const CHART_COLORS = {
+  oh: C.green,
+  gmv: C.dark,
+  fr: C.blue,
+  cr: "#F59E0B" // amber-yellow — distinct from blue FR and green OH
+};
+const selStyle = {
+  ...ff,
+  background: C.white,
+  border: `1.5px solid ${C.border}`,
+  borderRadius: 6,
+  padding: "8px 32px 8px 12px",
+  fontSize: 13,
+  color: C.dark,
+  fontWeight: 600,
+  cursor: "pointer",
+  outline: "none",
+  WebkitAppearance: "none",
+  MozAppearance: "none",
+  appearance: "none",
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234B6B59'/%3E%3C/svg%3E")`,
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 10px center"
+};
+
+// ─── i18n ───
+let LANG = "es";
+try {
+  if (typeof localStorage !== "undefined") {
+    const _l = localStorage.getItem("fleetLang");
+    if (_l) LANG = _l;
+  }
+} catch (e) {}
+const TR = {
+  "Fleet Agreement Tracker": "Seguimiento del Acuerdo de Flota",
+  "Vehicle-level qualification": "Cualificacion por vehiculo",
+  "Driver-level qualification": "Cualificacion por conductor",
+  "Month": "Mes",
+  "Snapshot · Jun 22, 2026": "Datos · 22 jun 2026",
+  "in progress": "en curso",
+  "Results appear once the week closes.": "Los resultados aparecen al cerrar la semana.",
+  "Month-to-Date Fleet Performance": "Rendimiento de la flota en lo que va de mes",
+  " · No completed weeks yet": " · Aun sin semanas cerradas",
+  "No completed weeks for {m} yet.": "Aun no hay semanas cerradas de {m}.",
+  "Financial": "Financiero",
+  "Operational": "Operativo",
+  "Performance Evolution": "Evolucion del rendimiento",
+  "Financial Terms — applied to qualifying vehicles only": "Condiciones economicas — solo para vehiculos que cualifican",
+  "Financial Terms — applied to qualifying drivers only": "Condiciones economicas — solo para conductores que cualifican",
+  "Qualification Requirements": "Requisitos de cualificacion",
+  "Qualifying condition": "Condicion de cualificacion",
+  "Both conditions must be met by the same vehicle in the same week": "Ambas condiciones debe cumplirlas el mismo vehiculo en la misma semana",
+  "Both conditions must be met in the same week": "Ambas condiciones deben cumplirse en la misma semana",
+  "All targets and qualification conditions are evaluated on a weekly basis, at vehicle level.": "Todos los objetivos y condiciones se evaluan semanalmente, a nivel de vehiculo.",
+  "All targets and qualification conditions are evaluated on a weekly basis.": "Todos los objetivos y condiciones se evaluan semanalmente.",
+  "Peak Hours Schedule — 44 total slots / week": "Calendario de horas punta — 44 franjas / semana",
+  "slots": "franjas",
+  "h / week": " h / semana",
+  "% / week": "% / semana",
+  "Vehicle must be online during at least {n} of the 44 available peak hour slots per week.": "El vehiculo debe estar conectado al menos {n} de las 44 franjas punta disponibles por semana.",
+  "Finished rides ÷ (Finished + Driver-Cancelled). Only driver-initiated cancellations count.": "Viajes completados ÷ (Completados + Cancelados por el conductor). Solo cuentan las cancelaciones del conductor.",
+  "Minimum net earnings per online hour, per vehicle, after Bolt commission and VAT.": "Ganancia neta minima por hora conectada, por vehiculo, tras comision de Bolt e IVA.",
+  "Minimum net earnings per online hour, per driver, after Bolt commission and VAT.": "Ganancia neta minima por hora conectada, por conductor, tras comision de Bolt e IVA.",
+  "Deducted from gross revenue before any other calculation.": "Se deduce de los ingresos brutos antes de cualquier otro calculo.",
+  "Applied after commission. Net = GMV × 0.75 ÷ 1.10": "Se aplica tras la comision. Neto = GMV × 0.75 ÷ 1.10",
+  "Gross Revenue (GMV)": "Ingresos brutos (GMV)",
+  "Net Revenue": "Ingresos netos",
+  "Supply Spend %": "% Gasto en oferta",
+  "Total Guaranteed Payout": "Pago garantizado total",
+  "Finished Rides": "Viajes completados",
+  "Online Hours": "Horas conectado",
+  "Active Vehicles": "Vehiculos activos",
+  "Active Cars": "Vehiculos activos",
+  "RPH": "RPH",
+  "Net EPH After VAT": "EPH neto tras IVA",
+  "Utilization": "Utilizacion",
+  "Peak Hours": "Horas punta",
+  "Completion Rate": "Tasa de finalizacion",
+  "Guaranteed Net EPH": "EPH neto garantizado",
+  "Bolt Commission": "Comision de Bolt",
+  "VAT": "IVA",
+  "Total gross booking value generated by the fleet. Source: Bolt internal data, grouped by vehicle.": "Valor bruto total de reservas generado por la flota. Fuente: datos internos de Bolt, agrupados por vehiculo.",
+  "Total gross booking value generated by the fleet. Source: Bolt internal data, validated against Fleet Portal.": "Valor bruto total de reservas generado por la flota. Fuente: datos internos de Bolt, validados con Fleet Portal.",
+  "Gross revenue after deducting Bolt's 25% commission and 10% VAT. Formula: GMV × 0.75 ÷ 1.10": "Ingresos brutos tras deducir la comision del 25% de Bolt y el 10% de IVA. Formula: GMV × 0.75 ÷ 1.10",
+  "Total guaranteed payout as a percentage of gross revenue. Formula: Total Guaranteed Payout ÷ Gross GMV × 100.": "Pago garantizado total como porcentaje de los ingresos brutos. Formula: Pago garantizado total ÷ GMV bruto × 100.",
+  "Total guarantee top-up paid to qualifying vehicles. For each qualifying vehicle: MAX(0, (€28 − Net EPH After VAT) × Online Hours) per week.": "Complemento garantizado pagado a los vehiculos que cualifican. Por cada vehiculo: MAX(0, (28€ − EPH neto tras IVA) × Horas conectado) por semana.",
+  "Total guarantee top-up paid to qualifying drivers. For each qualifying driver: MAX(0, (€28 − Net EPH After VAT) × Online Hours) per week. Sum of all completed weeks.": "Complemento garantizado pagado a los conductores que cualifican. Por cada conductor: MAX(0, (28€ − EPH neto tras IVA) × Horas conectado) por semana. Suma de las semanas cerradas.",
+  "Total rides completed by vehicles. W23: 1,041 + W24: 1,051 = 2,092.": "Viajes completados por los vehiculos. W23: 1.041 + W24: 1.051 = 2.092.",
+  "Total rides completed by drivers. Source: Bolt internal data. W23: 466 + W24: 483 = 949.": "Viajes completados por los conductores. Fuente: datos internos de Bolt. W23: 466 + W24: 483 = 949.",
+  "Total hours vehicles were online. W23: 587.28h + W24: 551.30h = 1,138.58h.": "Horas totales que los vehiculos estuvieron conectados. W23: 587,28h + W24: 551,30h = 1.138,58h.",
+  "Total hours drivers were online. Validated to match Fleet Portal exactly. W23: 293.38h + W24: 292.96h = 586.34h.": "Horas totales que los conductores estuvieron conectados. Validado con Fleet Portal. W23: 293,38h + W24: 292,96h = 586,34h.",
+  "Number of distinct vehicles with at least one finished ride across all completed weeks.": "Numero de vehiculos distintos con al menos un viaje completado en las semanas cerradas.",
+  "Average finished rides per online hour across the fleet.": "Media de viajes completados por hora conectada en la flota.",
+  "Net Revenue After VAT divided by Online Hours. Formula: (GMV × 0.75 ÷ 1.10) ÷ Online Hours. Contract guarantee floor is €28/h per vehicle.": "Ingresos netos tras IVA divididos por las horas conectado. Formula: (GMV × 0.75 ÷ 1.10) ÷ Horas conectado. El minimo garantizado del contrato es 28€/h por vehiculo.",
+  "Net Revenue After VAT divided by Online Hours. Formula: (GMV × 0.75 ÷ 1.10) ÷ Online Hours. Contract guarantee floor is €28/h.": "Ingresos netos tras IVA divididos por las horas conectado. Formula: (GMV × 0.75 ÷ 1.10) ÷ Horas conectado. El minimo garantizado del contrato es 28€/h.",
+  "Share of online time spent with an assigned order. Jun MTD: 443.38h with order ÷ 586.34h total online = 75.6%.": "Porcentaje del tiempo conectado con un pedido asignado. Jun (mes): 443,38h con pedido ÷ 586,34h conectado = 75,6%.",
+  "Search plate (e.g. 0215-NCR)…": "Buscar matricula (ej. 0215-NCR)…",
+  "Search driver name…": "Buscar nombre de conductor…",
+  "daily": "Diario",
+  "weekly": "Semanal",
+  "GMV (€)": "GMV (€)",
+  "% Fleet FR": "% FR flota",
+  "% Qualifying Vehicles": "% Vehiculos que cualifican",
+  "Available in Weekly view only": "Disponible solo en vista semanal",
+  "(weekly)": "(semanal)",
+  "OH": "HC",
+  "vs": "vs",
+  "prev": "ant",
+  "No data available.": "No hay datos disponibles.",
+  "% Fleet FR = finished ÷ dispatched.": "% FR flota = completados ÷ despachados.",
+  " % Qualifying Vehicles = vehicles meeting both peak hours and completion rate thresholds. WoW comparison shown in tooltip.": " % Vehiculos que cualifican = vehiculos que cumplen horas punta y tasa de finalizacion. Comparativa semana a semana en el tooltip.",
+  "Daily view shows fleet-level aggregates. % Qualifying Vehicles is only available at weekly level.": "La vista diaria muestra agregados de la flota. El % de vehiculos que cualifican solo esta disponible a nivel semanal.",
+  "Vehicle Weekly Performance": "Rendimiento semanal por vehiculo",
+  "Driver Weekly Performance": "Rendimiento semanal por conductor",
+  "Week": "Semana",
+  "Qualifying vehicles this week": "Vehiculos que cualifican esta semana",
+  "Qualifying this week": "Cualifican esta semana",
+  "Total Payout this week": "Pago total esta semana",
+  "All": "Todos",
+  "Qualifying": "Cualifican",
+  "Not Qualifying": "No cualifican",
+  "No completed weeks for July 2026 yet.": "Aun no hay semanas cerradas de julio 2026.",
+  "No completed week selected.": "No hay semana cerrada seleccionada.",
+  "No vehicles match this filter.": "Ningun vehiculo coincide con este filtro.",
+  "No drivers match this filter.": "Ningun conductor coincide con este filtro.",
+  "Vehicle ID": "ID vehiculo",
+  "License Plate": "Matricula",
+  "Driver ID": "ID conductor",
+  "Driver Name": "Nombre conductor",
+  "Total Hours": "Horas totales",
+  "Comp. Rate": "Tasa final.",
+  "Gross GMV": "GMV bruto",
+  "Peak ✓": "Punta ✓",
+  "CR ✓": "TF ✓",
+  "Status": "Estado",
+  "Guarantee Payout": "Pago garantizado",
+  "QUALIFYING": "CUALIFICA",
+  "NOT QUALIFYING": "NO CUALIFICA",
+  "ABOVE THRESHOLD": "SOBRE EL UMBRAL",
+  "Not eligible": "No elegible",
+  "Fleet Total": "Total flota",
+  "Formulas:": "Formulas:",
+  "Monday": "Lunes",
+  "Tuesday": "Martes",
+  "Wednesday": "Miercoles",
+  "Thursday": "Jueves",
+  "Friday": "Viernes",
+  "Saturday": "Sabado",
+  "Sunday": "Domingo",
+  "June 2026": "Junio 2026",
+  "July 2026": "Julio 2026",
+  "May 2026": "Mayo 2026",
+  "vehicle": "vehiculo",
+  "driver": "conductor",
+  "__FOOTER_EN__": " Net EPH After VAT = (GMV × 0.75 ÷ 1.10) ÷ Online Hours · Supply Spend % = Total Guaranteed Payout ÷ Gross GMV · Comp. Rate = Finished ÷ (Finished + Driver-Cancelled) · Payout = MAX(0, (€28 − Net EPH After VAT) × Online Hours) · Evaluated per {who}. Peak ≥ {peak}h AND Comp. Rate ≥ {cr}% required.",
+  "__FOOTER_ES__": " EPH neto tras IVA = (GMV × 0.75 ÷ 1.10) ÷ Horas conectado · % Gasto en oferta = Pago garantizado total ÷ GMV bruto · Tasa de finalizacion = Completados ÷ (Completados + Cancelados por conductor) · Pago = MAX(0, (28€ − EPH neto tras IVA) × Horas conectado) · Se evalua por {who}. Se requiere Punta ≥ {peak}h Y Tasa ≥ {cr}%."
+};
+const t = s => LANG === "en" ? s : TR[s] !== undefined ? TR[s] : s;
+const tf = (s, v) => {
+  let o = t(s);
+  for (const k in v) o = o.split("{" + k + "}").join(v[k]);
+  return o;
+};
+
+// ─── CONTRACT ────────────────────────────────────────────────────────────────
+const __D = typeof window !== "undefined" && window.__FLEET__ ? window.__FLEET__ : {};
+const CONTRACT = __D.CONTRACT;
+const PEAK_HOURS = __D.PEAK_HOURS;
+const VEHICLE_PLATES = __D.VEHICLE_PLATES || {};
+const VEHICLES = __D.VEHICLES;
+const WEEKLY = __D.WEEKLY;
+const MTD_JUNE = __D.MTD_JUNE;
+const DAILY = __D.DAILY;
+const MONTHS = __D.MONTHS;
+// ─── FORMATTERS ───────────────────────────────────────────────────────────────
+const F = {
+  eur: (v, d = 2) => v == null || isNaN(v) ? "N/A" : `€${Number(v).toLocaleString("en-US", {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d
+  })}`,
+  num: (v, d = 2) => v == null || isNaN(v) ? "N/A" : Number(v).toLocaleString("en-US", {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d
+  }),
+  pct: (v, d = 1) => v == null || isNaN(v) ? "N/A" : `${Number(v).toFixed(d)}%`,
+  hrs: (v, d = 2) => v == null || isNaN(v) ? "N/A" : `${Number(v).toLocaleString("en-US", {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d
+  })}h`,
+  eph: v => v == null || isNaN(v) ? "N/A" : `€${Number(v).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}/h`
+};
+function fmtDate(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return `${d}-${m}`;
+}
+function fmtDateFull(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return `${d}-${m}-${y}`;
+}
+function trendPct(c, p) {
+  return !p || p === 0 ? null : (c - p) / Math.abs(p) * 100;
+}
+function defaultWeek(cfg) {
+  const completed = cfg.weeks.filter(w => w.complete);
+  return completed.length > 0 ? completed[completed.length - 1].label : null;
+}
+
+// ─── COMPONENTS ───────────────────────────────────────────────────────────────
+function SectionTitle({
+  children
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 15,
+      color: C.dark,
+      fontWeight: 800,
+      marginBottom: 14,
+      letterSpacing: "-0.01em"
+    }
+  }, children);
+}
+function SubLabel({
+  children,
+  mt = 0
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.dark,
+      fontWeight: 700,
+      marginBottom: 10,
+      marginTop: mt
+    }
+  }, children);
+}
+function SLabel({
+  children,
+  mb = 10
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: C.muted,
+      textTransform: "uppercase",
+      letterSpacing: "0.1em",
+      fontWeight: 700,
+      marginBottom: mb
+    }
+  }, children);
+}
+function KPICard({
+  label,
+  value,
+  prevValue,
+  prevLabel,
+  fmt,
+  tooltip,
+  accent = false
+}) {
+  const [tip, setTip] = useState(false);
+  const diff = prevValue != null ? trendPct(value, prevValue) : null;
+  const up = diff != null && diff > 0,
+    dn = diff != null && diff < 0;
+  const bg = accent ? C.dark : C.white;
+  const valColor = accent ? "#86EFAC" : C.dark;
+  const lblColor = accent ? "rgba(255,255,255,0.7)" : C.muted;
+  const subColor = accent ? "rgba(255,255,255,0.4)" : C.muted;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: bg,
+      border: `1.5px solid ${C.border}`,
+      borderRadius: 10,
+      padding: "16px 18px",
+      borderTop: `4px solid ${C.green}`,
+      position: "relative",
+      cursor: tooltip ? "help" : "default"
+    },
+    onMouseEnter: () => setTip(true),
+    onMouseLeave: () => setTip(false)
+  }, tip && tooltip && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      bottom: "calc(100% + 8px)",
+      left: 0,
+      background: "#1A3A2A",
+      color: C.white,
+      padding: "8px 12px",
+      borderRadius: 6,
+      fontSize: 11,
+      width: 240,
+      zIndex: 100,
+      lineHeight: 1.6,
+      pointerEvents: "none",
+      boxShadow: "0 4px 16px rgba(0,0,0,0.3)"
+    }
+  }, tooltip), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: lblColor,
+      textTransform: "uppercase",
+      letterSpacing: "0.1em",
+      fontWeight: 700,
+      marginBottom: 8
+    }
+  }, label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 22,
+      fontWeight: 800,
+      color: valColor,
+      letterSpacing: "-0.02em"
+    }
+  }, fmt ? fmt(value) : value ?? "N/A"), diff != null ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: up ? C.green : dn ? C.red : subColor,
+      marginTop: 5,
+      fontWeight: 600
+    }
+  }, up ? "↑" : dn ? "↓" : "=", " ", Math.abs(diff).toFixed(1), "% vs ", prevLabel) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: subColor,
+      marginTop: 5
+    }
+  }, "No prev data"));
+}
+function ContractCard({
+  icon,
+  label,
+  value,
+  sub,
+  met = null
+}) {
+  const borderColor = met === null ? C.border : met ? C.green : C.red;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: `2px solid ${borderColor}`,
+      borderRadius: 10,
+      background: C.white,
+      padding: "16px 18px",
+      flex: 1,
+      minWidth: 170
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 20,
+      marginBottom: 8
+    }
+  }, icon), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: C.muted,
+      textTransform: "uppercase",
+      letterSpacing: "0.1em",
+      fontWeight: 700,
+      marginBottom: 6
+    }
+  }, label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 20,
+      fontWeight: 800,
+      color: C.dark
+    }
+  }, value), sub && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: C.muted,
+      marginTop: 4,
+      lineHeight: 1.5
+    }
+  }, sub), met !== null && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8,
+      display: "inline-block",
+      padding: "2px 8px",
+      borderRadius: 20,
+      fontSize: 10,
+      fontWeight: 700,
+      background: met ? C.ga08 : C.amberBg,
+      color: met ? C.green : C.amber
+    }
+  }, t("Qualifying condition")));
+}
+function ContractTerms() {
+  const [qualOpen, setQualOpen] = useState(false);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.white,
+      border: `1.5px solid ${C.border}`,
+      borderRadius: 10,
+      padding: "20px 24px",
+      marginBottom: 22
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.ga08,
+      border: `1.5px solid ${C.ga20}`,
+      borderRadius: 7,
+      padding: "8px 14px",
+      marginBottom: 16,
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      fontSize: 12,
+      color: C.green,
+      fontWeight: 700
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "📋"), " ", t("All targets and qualification conditions are evaluated on a weekly basis, at vehicle level.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: `1.5px solid ${C.border}`,
+      borderRadius: 8,
+      overflow: "hidden",
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: () => setQualOpen(o => !o),
+    style: {
+      padding: "12px 16px",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      cursor: "pointer",
+      background: qualOpen ? C.ga08 : C.white,
+      userSelect: "none"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      color: C.dark
+    }
+  }, t("Qualification Requirements")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: C.muted
+    }
+  }, t("Both conditions must be met by the same vehicle in the same week")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.muted,
+      fontSize: 11
+    }
+  }, qualOpen ? "▲" : "▼"))), qualOpen && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "16px",
+      borderTop: `1px solid ${C.border}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 12,
+      flexWrap: "wrap",
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement(ContractCard, {
+    icon: "⏱",
+    label: t("Peak Hours"),
+    value: `≥ ${CONTRACT.minPeakHours}${t("h / week")}`,
+    sub: tf("Vehicle must be online during at least {n} of the 44 available peak hour slots per week.", {
+      n: CONTRACT.minPeakHours
+    }),
+    met: true
+  }), /*#__PURE__*/React.createElement(ContractCard, {
+    icon: "✅",
+    label: t("Completion Rate"),
+    value: `≥ ${CONTRACT.minCR}${t("% / week")}`,
+    sub: t("Finished rides ÷ (Finished + Driver-Cancelled). Only driver-initiated cancellations count."),
+    met: true
+  })), /*#__PURE__*/React.createElement(SubLabel, null, t("Financial Terms — applied to qualifying vehicles only")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 12,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement(ContractCard, {
+    icon: "💶",
+    label: t("Guaranteed Net EPH"),
+    value: `€${CONTRACT.guaranteedNetEPH}/h`,
+    sub: t("Minimum net earnings per online hour, per vehicle, after Bolt commission and VAT.")
+  }), /*#__PURE__*/React.createElement(ContractCard, {
+    icon: "📊",
+    label: t("Bolt Commission"),
+    value: `${CONTRACT.commission * 100}%`,
+    sub: t("Deducted from gross revenue before any other calculation.")
+  }), /*#__PURE__*/React.createElement(ContractCard, {
+    icon: "🧾",
+    label: t("VAT"),
+    value: `${CONTRACT.vat * 100}%`,
+    sub: t("Applied after commission. Net = GMV × 0.75 ÷ 1.10")
+  })))), /*#__PURE__*/React.createElement(SLabel, {
+    mb: 10
+  }, t("Peak Hours Schedule — 44 total slots / week")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap"
+    }
+  }, Object.entries(PEAK_HOURS).map(([day, hours]) => {
+    const ranges = [];
+    if (hours.some(h => h < 5)) ranges.push("00:00 – 05:00");
+    if (hours.some(h => h >= 18)) ranges.push("18:00 – 24:00");
+    return /*#__PURE__*/React.createElement("div", {
+      key: day,
+      style: {
+        background: C.bg,
+        border: `1.5px solid ${C.border}`,
+        borderRadius: 8,
+        overflow: "hidden",
+        minWidth: 128
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: C.dark,
+        padding: "8px 12px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: C.white,
+        fontWeight: 800,
+        letterSpacing: "0.03em"
+      }
+    }, t(day))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: "10px 12px"
+      }
+    }, ranges.map(r => /*#__PURE__*/React.createElement("div", {
+      key: r,
+      style: {
+        fontSize: 12,
+        color: C.dark,
+        fontWeight: 600,
+        marginBottom: 2
+      }
+    }, r)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: C.green,
+        marginTop: 4,
+        fontWeight: 700
+      }
+    }, hours.length, " ", t("slots"))));
+  })));
+}
+
+// ─── CHART TOOLTIP ───────────────────────────────────────────────────────────
+function ChartTooltip({
+  active,
+  payload,
+  label,
+  allData,
+  view
+}) {
+  if (!active || !payload?.length) return null;
+  const meta = {
+    oh: {
+      color: CHART_COLORS.oh,
+      fmt: v => F.hrs(v)
+    },
+    gmv: {
+      color: CHART_COLORS.gmv,
+      fmt: v => F.eur(v)
+    },
+    fr_pct: {
+      color: CHART_COLORS.fr,
+      fmt: v => F.pct(v)
+    },
+    cr_pct: {
+      color: CHART_COLORS.cr,
+      fmt: v => F.pct(v)
+    }
+  };
+  const idx = allData ? allData.findIndex(d => d.label === label) : -1;
+  const prevRow = view === "weekly" && idx > 0 ? allData[idx - 1] : null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#071A10",
+      borderRadius: 10,
+      padding: "14px 18px",
+      fontSize: 12,
+      color: C.white,
+      minWidth: 240,
+      boxShadow: "0 6px 24px rgba(0,0,0,0.4)",
+      border: "1px solid rgba(42,156,100,0.25)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 800,
+      marginBottom: 12,
+      color: C.green,
+      fontSize: 13,
+      borderBottom: "1px solid rgba(42,156,100,0.2)",
+      paddingBottom: 8
+    }
+  }, label, prevRow && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "rgba(255,255,255,0.35)",
+      fontWeight: 400,
+      marginLeft: 8
+    }
+  }, t("vs"), " ", prevRow.label)), payload.map((p, i) => {
+    const m = meta[p.dataKey] || {};
+    const col = m.color || C.white;
+    const fmt = m.fmt || (v => String(v));
+    const prevVal = prevRow ? prevRow[p.dataKey] : null;
+    const wow = prevVal != null && prevVal !== 0 ? (p.value - prevVal) / Math.abs(prevVal) * 100 : null;
+    return /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        marginBottom: i < payload.length - 1 ? 10 : 0
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 10,
+        height: 10,
+        borderRadius: "50%",
+        background: col,
+        display: "inline-block",
+        flexShrink: 0
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "rgba(255,255,255,0.65)",
+        fontSize: 11
+      }
+    }, p.name)), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 800,
+        color: C.white,
+        fontSize: 13
+      }
+    }, fmt(p.value))), wow != null && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        marginTop: 3,
+        paddingLeft: 18,
+        fontSize: 10
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "rgba(255,255,255,0.35)"
+      }
+    }, t("prev"), ": ", fmt(prevVal)), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 700,
+        color: wow > 0 ? "#86EFAC" : "#FCA5A5"
+      }
+    }, wow > 0 ? "+" : "", wow.toFixed(1), "% WoW")));
+  }));
+}
+
+// ─── VEHICLE SEARCH ────────────────────────────────────────────────────────────
+function VehicleSearch({
+  value,
+  onChange,
+  onClear,
+  vehicles
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const plates = useMemo(() => {
+    if (!value.trim()) return [];
+    const q = value.toLowerCase();
+    return vehicles.map(v => VEHICLE_PLATES[v.vehicle_id]).filter(Boolean).filter((p, i, a) => a.indexOf(p) === i).filter(p => p.toLowerCase().includes(q));
+  }, [value, vehicles]);
+  useEffect(() => {
+    function handler(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+  return /*#__PURE__*/React.createElement("div", {
+    ref: ref,
+    style: {
+      position: "relative",
+      minWidth: 220
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      border: `1.5px solid ${open || value ? C.green : C.border}`,
+      borderRadius: 6,
+      background: C.white,
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      padding: "0 10px",
+      color: C.muted,
+      fontSize: 13
+    }
+  }, "🔍"), /*#__PURE__*/React.createElement("input", {
+    value: value,
+    onChange: e => {
+      onChange(e.target.value);
+      setOpen(true);
+    },
+    onFocus: () => setOpen(true),
+    placeholder: t("Search plate (e.g. 0215-NCR)…"),
+    style: {
+      border: "none",
+      outline: "none",
+      flex: 1,
+      padding: "7px 0",
+      fontSize: 12,
+      ...ff,
+      color: C.dark,
+      background: "transparent"
+    }
+  }), value && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      onClear();
+      setOpen(false);
+    },
+    style: {
+      border: "none",
+      background: "none",
+      cursor: "pointer",
+      padding: "0 10px",
+      color: C.muted,
+      fontSize: 14,
+      lineHeight: 1
+    }
+  }, "×")), open && plates.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: "calc(100% + 4px)",
+      left: 0,
+      right: 0,
+      background: C.white,
+      border: `1.5px solid ${C.border}`,
+      borderRadius: 6,
+      zIndex: 200,
+      boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+      maxHeight: 200,
+      overflowY: "auto"
+    }
+  }, plates.map(p => /*#__PURE__*/React.createElement("div", {
+    key: p,
+    onMouseDown: () => {
+      onChange(p);
+      setOpen(false);
+    },
+    style: {
+      padding: "9px 14px",
+      fontSize: 12,
+      color: C.dark,
+      cursor: "pointer",
+      borderBottom: `1px solid ${C.border}`,
+      fontFamily: "monospace"
+    },
+    onMouseEnter: e => e.currentTarget.style.background = C.bg,
+    onMouseLeave: e => e.currentTarget.style.background = C.white
+  }, p))));
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
+function Dashboard() {
+  const [, __lt] = useState(0);
+  const toggleLang = () => {
+    LANG = LANG === "en" ? "es" : "en";
+    try {
+      localStorage.setItem("fleetLang", LANG);
+    } catch (e) {}
+    __lt(x => x + 1);
+  };
+  const [month, setMonth] = useState("june");
+  const [selWeek, setSelWeek] = useState(() => defaultWeek(MONTHS.june));
+  const [chartView, setChartView] = useState("weekly");
+  const [metrics, setMetrics] = useState({
+    gmv: true,
+    fr: true,
+    cr: true
+  });
+  const [rowFilter, setRowFilter] = useState("all");
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const cfg = MONTHS[month];
+  const prev = cfg.prevData;
+  const completed = cfg.weeks.filter(w => w.complete);
+  const noData = completed.length === 0;
+  const mtd = month === "june" ? MTD_JUNE : null;
+  const weekly = month === "june" ? WEEKLY : [];
+  function handleMonthChange(m) {
+    setMonth(m);
+    setSelWeek(defaultWeek(MONTHS[m]));
+    setRowFilter("all");
+    setVehicleSearch("");
+  }
+  const allVehicles = useMemo(() => month === "june" && selWeek ? VEHICLES[selWeek] || [] : [], [month, selWeek]);
+  const visVehicles = useMemo(() => {
+    let rows = allVehicles;
+    if (rowFilter === "qualifying") rows = rows.filter(v => v.qualifies);
+    if (rowFilter === "nonqualifying") rows = rows.filter(v => !v.qualifies);
+    if (vehicleSearch.trim()) {
+      const q = vehicleSearch.toLowerCase();
+      rows = rows.filter(v => (VEHICLE_PLATES[v.vehicle_id] || "").toLowerCase().includes(q));
+    }
+    rows = [...rows].sort((a, b) => {
+      const score = v => v.payout > 0 ? 2 : v.qualifies ? 1 : 0;
+      const sa = score(a),
+        sb = score(b);
+      if (sa !== sb) return sb - sa;
+      if (sa === 2) return b.payout - a.payout;
+      if (sa === 0) return b.peak_hours - a.peak_hours;
+      return 0;
+    });
+    return rows;
+  }, [allVehicles, rowFilter, vehicleSearch]);
+  const chartData = useMemo(() => {
+    if (chartView === "daily" && month === "june") {
+      return DAILY.map(d => ({
+        ...d,
+        label: fmtDate(d.date),
+        fr_pct: (d.fr || 0) * 100,
+        cr_pct: null // qualifying % not available at daily level
+      }));
+    }
+    return weekly.map(r => ({
+      ...r,
+      label: r.week,
+      fr_pct: (r.fr || 0) * 100,
+      cr_pct: r.qualifying_pct || 0
+    }));
+  }, [weekly, chartView, month]);
+  const qualifyingCount = allVehicles.filter(v => v.qualifies).length;
+  const currentWeekInfo = cfg.weeks.find(w => w.inProgress);
+  const weeklyRow = weekly.find(w => w.week === selWeek);
+  const weekPayout = weeklyRow?.payout ?? 0;
+  const supplySpendPct = mtd?.gmv && mtd?.total_guarantee_payout ? mtd.total_guarantee_payout / mtd.gmv * 100 : null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...ff,
+      background: C.bg,
+      minHeight: "100vh"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.dark,
+      padding: "18px 32px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      flexWrap: "wrap",
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      letterSpacing: "0.15em",
+      color: C.green,
+      textTransform: "uppercase",
+      fontWeight: 700,
+      marginBottom: 5
+    }
+  }, t("Fleet Agreement Tracker"), " · ID ", CONTRACT.id), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 17,
+      fontWeight: 700,
+      color: C.white
+    }
+  }, CONTRACT.company), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "rgba(255,255,255,0.45)",
+      marginTop: 3
+    }
+  }, t("Vehicle-level qualification"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: toggleLang,
+    title: "Language / Idioma",
+    style: {
+      ...ff,
+      background: "rgba(255,255,255,0.12)",
+      border: "1.5px solid rgba(42,156,100,0.5)",
+      color: C.white,
+      borderRadius: 6,
+      padding: "7px 12px",
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer"
+    }
+  }, LANG === "en" ? "ES" : "EN"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "rgba(255,255,255,0.5)",
+      fontWeight: 600
+    }
+  }, t("Month")), /*#__PURE__*/React.createElement("select", {
+    value: month,
+    onChange: e => handleMonthChange(e.target.value),
+    style: {
+      ...selStyle,
+      background: "rgba(255,255,255,0.12)",
+      border: `1.5px solid rgba(42,156,100,0.5)`,
+      color: C.white,
+      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3C path d='M0 0l5 6 5-6z' fill='%232A9C64'/%3E%3C/svg%3E")`
+    }
+  }, Object.entries(MONTHS).map(([k, m]) => /*#__PURE__*/React.createElement("option", {
+    key: k,
+    value: k,
+    style: {
+      background: C.dark
+    }
+  }, t(m.label)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: C.green,
+      fontWeight: 600,
+      padding: "4px 10px",
+      background: "rgba(42,156,100,0.12)",
+      borderRadius: 4
+    }
+  }, t("Snapshot · Jun 22, 2026")))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "24px 32px",
+      maxWidth: 1400,
+      margin: "0 auto"
+    }
+  }, currentWeekInfo && month === "june" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.amberBg,
+      border: `1.5px solid #FCD34D`,
+      borderRadius: 8,
+      padding: "10px 18px",
+      marginBottom: 18,
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      fontSize: 12,
+      color: C.amber,
+      fontWeight: 600
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "⏳"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, currentWeekInfo.label, " ", t("in progress")), " (", fmtDate(currentWeekInfo.start), " – ", fmtDate(currentWeekInfo.end), ") · ", t("Results appear once the week closes."))), /*#__PURE__*/React.createElement(ContractTerms, null), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 22
+    }
+  }, /*#__PURE__*/React.createElement(SectionTitle, null, t("Month-to-Date Fleet Performance"), " · ", t(cfg.label), completed.length > 0 ? ` · ${completed.map(w => w.label).join(", ")} · ${fmtDate(completed[0].start)} – ${fmtDate(completed[completed.length - 1].end)}` : t(" · No completed weeks yet")), noData ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.white,
+      border: `1.5px solid ${C.border}`,
+      borderRadius: 10,
+      padding: 32,
+      textAlign: "center",
+      color: C.muted,
+      fontSize: 13
+    }
+  }, tf("No completed weeks for {m} yet.", {
+    m: t(cfg.label)
+  })) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SubLabel, null, t("Financial")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(4,1fr)",
+      gap: 12,
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement(KPICard, {
+    label: t("Gross Revenue (GMV)"),
+    value: mtd?.gmv,
+    prevValue: prev?.gmv,
+    prevLabel: cfg.prevLabel,
+    fmt: v => F.eur(v),
+    tooltip: t("Total gross booking value generated by the fleet. Source: Bolt internal data, grouped by vehicle.")
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    label: t("Net Revenue"),
+    value: mtd?.net_revenue_after_vat,
+    prevValue: prev?.net_revenue_after_vat,
+    prevLabel: cfg.prevLabel,
+    fmt: v => F.eur(v),
+    tooltip: t("Gross revenue after deducting Bolt's 25% commission and 10% VAT. Formula: GMV × 0.75 ÷ 1.10")
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    label: t("Supply Spend %"),
+    value: supplySpendPct,
+    fmt: v => F.pct(v, 2),
+    tooltip: t("Total guaranteed payout as a percentage of gross revenue. Formula: Total Guaranteed Payout ÷ Gross GMV × 100.")
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    label: t("Total Guaranteed Payout"),
+    value: mtd?.total_guarantee_payout,
+    fmt: v => F.eur(v),
+    accent: true,
+    tooltip: t("Total guarantee top-up paid to qualifying vehicles. For each qualifying vehicle: MAX(0, (€28 − Net EPH After VAT) × Online Hours) per week.")
+  })), /*#__PURE__*/React.createElement(SubLabel, null, t("Operational")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(5,1fr)",
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement(KPICard, {
+    label: t("Finished Rides"),
+    value: mtd?.finished_trips,
+    prevValue: prev?.finished_trips,
+    prevLabel: cfg.prevLabel,
+    fmt: v => Number(v).toLocaleString("en-US"),
+    tooltip: t("Total rides completed by vehicles. W23: 1,041 + W24: 1,051 = 2,092.")
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    label: t("Online Hours"),
+    value: mtd?.online_hours,
+    prevValue: prev?.online_hours,
+    prevLabel: cfg.prevLabel,
+    fmt: v => F.hrs(v),
+    tooltip: t("Total hours vehicles were online. W23: 587.28h + W24: 551.30h = 1,138.58h.")
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    label: t("Active Vehicles"),
+    value: mtd?.active_cars,
+    prevValue: prev?.active_cars,
+    prevLabel: cfg.prevLabel,
+    fmt: v => Number(v).toLocaleString("en-US"),
+    tooltip: t("Number of distinct vehicles with at least one finished ride across all completed weeks.")
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    label: t("RPH"),
+    value: mtd?.rph,
+    prevValue: prev?.rph,
+    prevLabel: cfg.prevLabel,
+    fmt: v => F.num(v),
+    tooltip: t("Average finished rides per online hour across the fleet.")
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    label: t("Net EPH After VAT"),
+    value: mtd?.net_eph_after_vat,
+    prevValue: prev?.net_eph_after_vat,
+    prevLabel: cfg.prevLabel,
+    fmt: v => F.eph(v),
+    accent: true,
+    tooltip: t("Net Revenue After VAT divided by Online Hours. Formula: (GMV × 0.75 ÷ 1.10) ÷ Online Hours. Contract guarantee floor is €28/h per vehicle.")
+  })))), !noData && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.white,
+      border: `1.5px solid ${C.border}`,
+      borderRadius: 10,
+      padding: "20px 24px",
+      marginBottom: 22
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement(SectionTitle, null, t("Performance Evolution"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 14,
+      flexWrap: "wrap",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 4
+    }
+  }, ["daily", "weekly"].map(v => /*#__PURE__*/React.createElement("button", {
+    key: v,
+    onClick: () => {
+      setChartView(v);
+      if (v === "daily") setMetrics(m => ({
+        ...m,
+        cr: false
+      }));
+    },
+    style: {
+      padding: "5px 14px",
+      borderRadius: 4,
+      border: `1.5px solid ${chartView === v ? C.green : C.border}`,
+      background: chartView === v ? C.green : C.white,
+      color: chartView === v ? C.white : C.muted,
+      fontSize: 11,
+      fontWeight: 700,
+      cursor: "pointer",
+      ...ff
+    }
+  }, t(v)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 14
+    }
+  }, [{
+    k: "gmv",
+    l: "GMV (€)",
+    color: CHART_COLORS.gmv
+  }, {
+    k: "fr",
+    l: "% Fleet FR",
+    color: CHART_COLORS.fr
+  }, {
+    k: "cr",
+    l: "% Qualifying Vehicles",
+    color: CHART_COLORS.cr,
+    weekOnly: true
+  }].map(({
+    k,
+    l,
+    color,
+    weekOnly
+  }) => {
+    const dis = weekOnly && chartView === "daily";
+    return /*#__PURE__*/React.createElement("label", {
+      key: k,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 11,
+        color: dis ? "#ccc" : C.muted,
+        cursor: dis ? "not-allowed" : "pointer",
+        fontWeight: 600
+      },
+      title: dis ? t("Available in Weekly view only") : undefined
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 16,
+        height: 3,
+        background: dis ? "#ccc" : color,
+        display: "inline-block",
+        borderRadius: 2
+      }
+    }), /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: metrics[k],
+      disabled: dis,
+      onChange: e => setMetrics(m => ({
+        ...m,
+        [k]: e.target.checked
+      })),
+      style: {
+        accentColor: color,
+        marginRight: 2
+      }
+    }), t(l), dis && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9
+      }
+    }, " ", t("(weekly)")));
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 16,
+      marginBottom: 12,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      fontSize: 11,
+      color: C.muted
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 14,
+      height: 14,
+      background: CHART_COLORS.oh,
+      borderRadius: 2,
+      display: "inline-block"
+    }
+  }), t("OH")), metrics.gmv && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      fontSize: 11,
+      color: C.muted
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 20,
+      height: 3,
+      background: CHART_COLORS.gmv,
+      display: "inline-block",
+      borderRadius: 2
+    }
+  }), t("GMV (€)")), metrics.fr && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      fontSize: 11,
+      color: C.muted
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 20,
+      height: 3,
+      background: CHART_COLORS.fr,
+      display: "inline-block",
+      borderRadius: 2
+    }
+  }), t("% Fleet FR")), metrics.cr && chartView === "weekly" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      fontSize: 11,
+      color: C.muted
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 20,
+      height: 3,
+      background: CHART_COLORS.cr,
+      display: "inline-block",
+      borderRadius: 2
+    }
+  }), t("% Qualifying Vehicles"))), chartData.length > 0 ? /*#__PURE__*/React.createElement(ResponsiveContainer, {
+    width: "100%",
+    height: 360
+  }, /*#__PURE__*/React.createElement(ComposedChart, {
+    data: chartData,
+    margin: {
+      top: 5,
+      right: 70,
+      left: 10,
+      bottom: 5
+    }
+  }, /*#__PURE__*/React.createElement(CartesianGrid, {
+    strokeDasharray: "3 3",
+    stroke: C.border
+  }), /*#__PURE__*/React.createElement(XAxis, {
+    dataKey: "label",
+    tick: {
+      fontSize: chartView === "daily" ? 9 : 11,
+      fill: C.muted
+    },
+    tickLine: false,
+    interval: chartView === "daily" ? 1 : 0
+  }), /*#__PURE__*/React.createElement(YAxis, {
+    yAxisId: "oh",
+    tickFormatter: v => `${v.toFixed(0)}h`,
+    tick: {
+      fontSize: 11,
+      fill: C.muted
+    },
+    width: 44,
+    axisLine: false,
+    tickLine: false
+  }), metrics.gmv && /*#__PURE__*/React.createElement(YAxis, {
+    yAxisId: "gmv",
+    orientation: "right",
+    tickFormatter: v => v >= 1000 ? `€${(v / 1000).toFixed(0)}k` : `€${v}`,
+    tick: {
+      fontSize: 11,
+      fill: C.muted
+    },
+    width: 54,
+    axisLine: false,
+    tickLine: false
+  }), (metrics.fr || metrics.cr && chartView === "weekly") && /*#__PURE__*/React.createElement(YAxis, {
+    yAxisId: "pct",
+    orientation: "right",
+    domain: [0, 100],
+    tickFormatter: v => `${v}%`,
+    tick: {
+      fontSize: 11,
+      fill: C.muted
+    },
+    width: metrics.gmv ? 0 : 44,
+    hide: !!metrics.gmv
+  }), /*#__PURE__*/React.createElement(Tooltip, {
+    content: props => /*#__PURE__*/React.createElement(ChartTooltip, {
+      ...props,
+      allData: chartData,
+      view: chartView
+    })
+  }), /*#__PURE__*/React.createElement(Bar, {
+    dataKey: "oh",
+    yAxisId: "oh",
+    fill: CHART_COLORS.oh,
+    name: "OH",
+    radius: [3, 3, 0, 0],
+    maxBarSize: chartView === "daily" ? 28 : 64
+  }), metrics.gmv && /*#__PURE__*/React.createElement(Line, {
+    dataKey: "gmv",
+    yAxisId: "gmv",
+    stroke: CHART_COLORS.gmv,
+    strokeWidth: 2.5,
+    dot: {
+      fill: CHART_COLORS.gmv,
+      r: chartView === "daily" ? 2 : 4
+    },
+    activeDot: {
+      r: 6
+    },
+    name: "GMV (€)"
+  }), metrics.fr && /*#__PURE__*/React.createElement(Line, {
+    dataKey: "fr_pct",
+    yAxisId: "pct",
+    stroke: CHART_COLORS.fr,
+    strokeWidth: 2,
+    dot: {
+      fill: CHART_COLORS.fr,
+      r: chartView === "daily" ? 2 : 3
+    },
+    activeDot: {
+      r: 5
+    },
+    name: "% Fleet FR"
+  }), metrics.cr && chartView === "weekly" && /*#__PURE__*/React.createElement(Line, {
+    dataKey: "cr_pct",
+    yAxisId: "pct",
+    stroke: CHART_COLORS.cr,
+    strokeWidth: 2,
+    dot: {
+      fill: CHART_COLORS.cr,
+      r: 5,
+      strokeWidth: 2,
+      stroke: C.white
+    },
+    activeDot: {
+      r: 7
+    },
+    name: "% Qualifying Vehicles"
+  }))) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 340,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: C.muted,
+      fontSize: 13
+    }
+  }, t("No data available.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: C.muted,
+      marginTop: 8
+    }
+  }, t("% Fleet FR = finished ÷ dispatched."), chartView === "weekly" ? t(" % Qualifying Vehicles = vehicles meeting both peak hours and completion rate thresholds. WoW comparison shown in tooltip.") : "", " ", chartView === "daily" ? t("Daily view shows fleet-level aggregates. % Qualifying Vehicles is only available at weekly level.") : "")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.white,
+      border: `1.5px solid ${C.border}`,
+      borderRadius: 10,
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "16px 20px",
+      borderBottom: `1.5px solid ${C.border}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement(SectionTitle, null, t("Vehicle Weekly Performance"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      flexWrap: "wrap",
+      marginBottom: 14
+    }
+  }, completed.length > 0 && month === "june" && selWeek && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: C.muted,
+      fontWeight: 600
+    }
+  }, t("Week")), /*#__PURE__*/React.createElement("select", {
+    value: selWeek,
+    onChange: e => {
+      setSelWeek(e.target.value);
+      setVehicleSearch("");
+    },
+    style: selStyle
+  }, completed.map(w => /*#__PURE__*/React.createElement("option", {
+    key: w.label,
+    value: w.label
+  }, w.label, " · ", fmtDate(w.start), " – ", fmtDate(w.end))))), selWeek && allVehicles.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.bg,
+      border: `1.5px solid ${C.border}`,
+      borderRadius: 8,
+      padding: "10px 16px",
+      borderTop: `3px solid ${C.green}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: C.muted,
+      textTransform: "uppercase",
+      fontWeight: 700,
+      letterSpacing: "0.1em",
+      marginBottom: 5
+    }
+  }, t("Qualifying vehicles this week")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 18,
+      fontWeight: 800,
+      color: C.dark
+    }
+  }, qualifyingCount, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      fontWeight: 600
+    }
+  }, "/", allVehicles.length))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.dark,
+      border: `1.5px solid ${C.dark}`,
+      borderRadius: 8,
+      padding: "10px 16px",
+      borderTop: `3px solid ${C.green}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: "rgba(255,255,255,0.55)",
+      textTransform: "uppercase",
+      fontWeight: 700,
+      letterSpacing: "0.1em",
+      marginBottom: 5
+    }
+  }, t("Total Payout this week")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 18,
+      fontWeight: 800,
+      color: "#86EFAC"
+    }
+  }, F.eur(weekPayout))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement(VehicleSearch, {
+    value: vehicleSearch,
+    onChange: setVehicleSearch,
+    onClear: () => setVehicleSearch(""),
+    vehicles: allVehicles
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 5
+    }
+  }, [["all", t("All")], ["qualifying", t("Qualifying")], ["nonqualifying", t("Not Qualifying")]].map(([v, l]) => /*#__PURE__*/React.createElement("button", {
+    key: v,
+    onClick: () => setRowFilter(v),
+    style: {
+      padding: "5px 14px",
+      borderRadius: 4,
+      border: `1.5px solid ${rowFilter === v ? C.green : C.border}`,
+      background: rowFilter === v ? C.green : C.white,
+      color: rowFilter === v ? C.white : C.muted,
+      fontSize: 11,
+      fontWeight: 600,
+      cursor: "pointer",
+      ...ff
+    }
+  }, l))))), noData || !selWeek ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 40,
+      textAlign: "center",
+      color: C.muted,
+      fontSize: 13
+    }
+  }, month === "july" ? t("No completed weeks for July 2026 yet.") : t("No completed week selected.")) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: 12,
+      minWidth: 940
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Vehicle ID", "License Plate", "Total Hours", "Peak Hours", "Comp. Rate", "Gross GMV", "Net EPH After VAT", "Peak ✓", "CR ✓", "Status", "Guarantee Payout"].map(t).map((h, i) => /*#__PURE__*/React.createElement("th", {
+    key: i,
+    style: {
+      padding: "11px 14px",
+      textAlign: i < 2 ? "left" : "center",
+      fontSize: 10,
+      fontWeight: 700,
+      color: C.white,
+      textTransform: "uppercase",
+      letterSpacing: "0.07em",
+      background: C.dark,
+      whiteSpace: "nowrap"
+    }
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, visVehicles.length === 0 ? /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: 11,
+    style: {
+      padding: 28,
+      textAlign: "center",
+      color: C.muted
+    }
+  }, t("No vehicles match this filter."))) : visVehicles.map((v, i) => {
+    const aboveThresh = v.qualifies && v.payout === 0;
+    const plate = VEHICLE_PLATES[v.vehicle_id];
+    return /*#__PURE__*/React.createElement("tr", {
+      key: v.vehicle_id,
+      style: {
+        borderBottom: `1px solid ${C.border}`,
+        background: i % 2 === 0 ? C.white : C.bg,
+        borderLeft: `4px solid ${v.qualifies ? C.green : "transparent"}`
+      }
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "11px 14px",
+        fontWeight: 700,
+        color: C.dark,
+        fontFamily: "monospace"
+      }
+    }, v.vehicle_id), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "11px 14px",
+        color: C.dark,
+        fontSize: 12,
+        fontWeight: 700,
+        fontFamily: "monospace"
+      }
+    }, plate && plate !== "Unknown" ? plate : /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted,
+        fontStyle: "italic",
+        fontWeight: 400,
+        fontSize: 11
+      }
+    }, "—")), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "11px 14px",
+        textAlign: "center",
+        color: C.muted
+      }
+    }, F.hrs(v.oh)), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "11px 14px",
+        textAlign: "center"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 700,
+        color: v.qPeak ? C.green : C.red
+      }
+    }, v.peak_hours, "h"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted,
+        fontSize: 10
+      }
+    }, " /", CONTRACT.minPeakHours)), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "11px 14px",
+        textAlign: "center"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 700,
+        color: v.qCR ? C.green : C.red
+      }
+    }, F.pct(v.cr * 100)), /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted,
+        fontSize: 10
+      }
+    }, " /", CONTRACT.minCR, "%")), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "11px 14px",
+        textAlign: "center",
+        color: C.muted
+      }
+    }, F.eur(v.gmv)), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "11px 14px",
+        textAlign: "center",
+        fontWeight: 700,
+        color: C.dark
+      }
+    }, F.eph(v.net_eph)), [v.qPeak, v.qCR].map((ok, ci) => /*#__PURE__*/React.createElement("td", {
+      key: ci,
+      style: {
+        padding: "11px 14px",
+        textAlign: "center"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: "inline-block",
+        width: 20,
+        height: 20,
+        borderRadius: "50%",
+        background: ok ? C.green : "transparent",
+        border: `2px solid ${ok ? C.green : C.red}`,
+        lineHeight: "18px",
+        textAlign: "center",
+        fontSize: 11,
+        color: C.white,
+        fontWeight: 800
+      }
+    }, ok ? "✓" : ""))), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "11px 14px",
+        textAlign: "center"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        padding: "3px 10px",
+        borderRadius: 20,
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.06em",
+        background: v.qualifies ? C.green : C.dark,
+        color: C.white
+      }
+    }, v.qualifies ? t("QUALIFYING") : t("NOT QUALIFYING"))), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "11px 14px",
+        textAlign: "center",
+        fontWeight: 800
+      }
+    }, v.payout > 0 ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.green,
+        fontSize: 14
+      }
+    }, F.eur(v.payout)) : aboveThresh ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        padding: "3px 10px",
+        borderRadius: 20,
+        fontSize: 10,
+        fontWeight: 700,
+        background: C.ga08,
+        color: C.green
+      }
+    }, t("ABOVE THRESHOLD")) : /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted,
+        fontSize: 11
+      }
+    }, t("Not eligible"))));
+  })), /*#__PURE__*/React.createElement("tfoot", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: C.dark
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    colSpan: 2,
+    style: {
+      padding: "13px 14px",
+      fontWeight: 700,
+      color: "rgba(255,255,255,0.5)",
+      fontSize: 10,
+      textTransform: "uppercase",
+      letterSpacing: "0.07em"
+    }
+  }, t("Fleet Total")), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "13px 14px",
+      textAlign: "center",
+      fontWeight: 700,
+      color: C.white
+    }
+  }, F.hrs(visVehicles.reduce((s, v) => s + v.oh, 0))), /*#__PURE__*/React.createElement("td", {
+    colSpan: 7
+  }), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "13px 14px",
+      textAlign: "center",
+      fontWeight: 800,
+      color: "#86EFAC",
+      fontSize: 16
+    }
+  }, F.eur(visVehicles.reduce((s, v) => s + v.payout, 0)))))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 14,
+      fontSize: 11,
+      color: C.muted,
+      lineHeight: 1.8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 700,
+      color: C.dark
+    }
+  }, t("Formulas:")), " ", tf(LANG === "en" ? "__FOOTER_EN__" : "__FOOTER_ES__", {
+    who: t("vehicle"),
+    peak: CONTRACT.minPeakHours,
+    cr: CONTRACT.minCR
+  }))));
+}
+window.Dashboard = Dashboard;

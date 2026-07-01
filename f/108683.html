@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>International Business Limousines SAU — Fleet Agreement Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
+<style>html,body{margin:0;background:#F5F9F6;font-family:Inter,sans-serif}
+#err{display:none;max-width:680px;margin:80px auto;padding:24px;border:1px solid #C5DAD0;border-radius:10px;color:#0C2C1C}
+#load{max-width:680px;margin:120px auto;text-align:center;color:#4B6B59;font-weight:600}</style>
+</head><body>
+<div id="root"></div>
+<div id="load">Cargando datos…</div>
+<div id="err"><b>No se pudieron cargar los datos.</b><br/>Revisa que exista <code>data/108683.json</code>.</div>
+<script>
+fetch("../data/108683.json?ts="+Date.now())
+  .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(d=>{
+    window.__FLEET__ = d;
+    const s=document.createElement("script");
+    s.src="../assets/app.driver.js?ts="+Date.now();
+    s.onload=()=>{
+      document.getElementById("load").style.display="none";
+      ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(window.Dashboard));
+    };
+    s.onerror=()=>{document.getElementById("load").style.display="none";document.getElementById("err").style.display="block";};
+    document.body.appendChild(s);
+  })
+  .catch(()=>{document.getElementById("load").style.display="none";document.getElementById("err").style.display="block";});
+</script>
+</body></html>

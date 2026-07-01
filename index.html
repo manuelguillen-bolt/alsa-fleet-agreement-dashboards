@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Fleet Agreement Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F9F6;font-family:Inter,sans-serif;color:#0C2C1C}
+.wrap{max-width:880px;margin:0 auto;padding:56px 24px}
+h1{font-size:26px;font-weight:800;letter-spacing:-0.02em;margin:0 0 4px}
+.sub{color:#4B6B59;font-weight:600;margin-bottom:32px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{display:block;text-decoration:none;color:inherit;background:#fff;border:1.5px solid #C5DAD0;border-radius:12px;padding:22px;transition:.15s}
+.card:hover{border-color:#2A9C64;box-shadow:0 6px 20px rgba(42,156,100,.12)}
+.cid{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#4B6B59;font-weight:700}
+.cname{font-size:17px;font-weight:800;margin:6px 0 4px}
+.ctype{font-size:13px;color:#4B6B59;font-weight:600}
+.foot{margin-top:28px;color:#4B6B59;font-size:12px}
+@media(max-width:640px){.grid{grid-template-columns:1fr}}
+</style></head><body>
+<div class="wrap">
+  <h1>Fleet Agreement Tracker</h1>
+  <div class="sub">Cualificación semanal y guaranteed payout · 28 €/h EPH neto · 25% comisión · 10% IVA</div>
+  <div class="grid">
+    <a class="card" href="f/112579.html">
+      <div class="cid">ID 112579</div>
+      <div class="cname">Movilidad Multimodal SL</div>
+      <div class="ctype">Cualificación por vehículo</div>
+    </a>
+    <a class="card" href="f/108683.html">
+      <div class="cid">ID 108683</div>
+      <div class="cname">International Business Limousines SAU</div>
+      <div class="ctype">Cualificación por conductor</div>
+    </a>
+  </div>
+  <div class="foot" id="foot"></div>
+</div>
+<script>
+fetch("data/112579.json?ts="+Date.now()).then(r=>r.json()).then(d=>{
+  const w=(d.MONTHS&&d.MONTHS.june&&d.MONTHS.june.weeks)||[];
+  const done=w.filter(x=>x.complete).map(x=>x.label).join(", ");
+  document.getElementById("foot").textContent="Semanas completas: "+done;
+}).catch(()=>{});
+</script>
+</body></html>

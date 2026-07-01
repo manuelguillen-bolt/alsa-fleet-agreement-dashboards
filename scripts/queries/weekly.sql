@@ -1,0 +1,3 @@
+-- weekly.sql  ·  NO se usa como query.
+-- El agregado semanal de flota (finished_trips, dispatched_trips, gmv, oh) se
+-- calcula en fetch.py sumando las filas por entidad de entity_week.sql.
