@@ -29,10 +29,28 @@ WAREHOUSE = os.environ.get("DATABRICKS_WAREHOUSE_ID", "")
 
 FLEETS = [
     {"id": 112579, "entity": "vehicle", "id_key": "vehicle_id",
-     "pd_id": "driver_car_id", "sl_id": "car_id", "coll": "VEHICLES", "labels": "VEHICLE_PLATES"},
+     "pd_id": "driver_car_id", "sl_id": "car_id", "coll": "VEHICLES", "labels": "VEHICLE_PLATES",
+     "label_table": "main.core_models.dim_car", "label_id": "car_id", "label_col": "car_reg_number"},
     {"id": 108683, "entity": "driver", "id_key": "driver_id",
-     "pd_id": "driver_id", "sl_id": "driver_id", "coll": "DRIVERS", "labels": "DRIVER_NAMES"},
+     "pd_id": "driver_id", "sl_id": "driver_id", "coll": "DRIVERS", "labels": "DRIVER_NAMES",
+     "label_table": "main.ng_public.driver_earnings_driver", "label_id": "driver_id", "label_col": "name"},
 ]
+
+
+def get_labels(fleet, ids):
+    """Matriculas (coche) o nombres (conductor) para TODAS las entidades presentes."""
+    ids = [i for i in ids if i]
+    if not ids:
+        return {}
+    idlist = ",".join(str(int(i)) for i in sorted(set(ids)))
+    rows = run_sql(f"SELECT {fleet['label_id']} AS eid, {fleet['label_col']} AS lbl "
+                   f"FROM {fleet['label_table']} WHERE {fleet['label_id']} IN ({idlist})")
+    out = {}
+    for r in rows:
+        lbl = r.get("lbl")
+        if lbl not in (None, ""):
+            out[str(int(num(r["eid"])))] = lbl
+    return out
 
 
 def run_sql(query):
@@ -110,8 +128,12 @@ def build_fleet(fleet):
 
     out = {"CONTRACT": c, "PEAK_HOURS": cfg["PEAK_HOURS"], "MONTHS": months,
            fleet["coll"]: coll, "WEEKLY": weekly, "DAILY": daily}
-    if fleet["labels"] in cfg:
-        out[fleet["labels"]] = cfg[fleet["labels"]]
+    # etiquetas (matriculas/nombres) para TODAS las entidades presentes, desde Databricks
+    all_ids = {e[idk] for wk in coll.values() for e in wk}
+    labels = get_labels(fleet, all_ids)
+    if fleet["labels"] in cfg:  # fusiona: dinamico manda, config como respaldo
+        merged = dict(cfg[fleet["labels"]]); merged.update(labels); labels = merged
+    out[fleet["labels"]] = labels
 
     if weekly:
         g = sum(w["gmv"] for w in weekly); o = sum(w["oh"] for w in weekly)
