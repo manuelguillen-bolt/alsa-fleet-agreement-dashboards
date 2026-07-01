@@ -162,22 +162,22 @@ def is_ready(data, fleet):
 
 
 def main():
-    fail = False
+    had_error = False   # error real (SQL/red/parseo) -> workflow en rojo
     for fleet in FLEETS:
         try:
             data = build_fleet(fleet)
-        except Exception as e:  # red/SQL: no tocar el dashboard bueno, reintentar la proxima hora
-            print(f"[skip] {fleet['id']}: error consultando datos ({e}); se reintenta la proxima hora")
-            fail = True
+        except Exception as e:
+            print(f"[error] {fleet['id']}: fallo consultando datos: {e}")
+            had_error = True
             continue
         if not is_ready(data, fleet):
+            # No es un error: el ETL aun no cargo la semana. Verde y se reintenta la proxima hora.
             print(f"[skip] {fleet['id']}: datos de la ultima semana aun no disponibles; se reintenta la proxima hora")
-            fail = True
             continue
         json.dump(data, open(os.path.join(ROOT, "data", f"{fleet['id']}.json"), "w"), ensure_ascii=False)
         print(f"[ok] data/{fleet['id']}.json actualizado")
-    # exit 0 siempre: no queremos que el retry horario marque el workflow como fallido.
-    return 0
+    if had_error:
+        sys.exit(1)   # marca el workflow como fallido para que se vea
 
 
 if __name__ == "__main__":
