@@ -135,42 +135,45 @@ def build_fleet(fleet):
         merged = dict(cfg[fleet["labels"]]); merged.update(labels); labels = merged
     out[fleet["labels"]] = labels
 
-    if weekly:
-        g = sum(w["gmv"] for w in weekly); o = sum(w["oh"] for w in weekly)
-        f = sum(w["finished_trips"] for w in weekly); ds = sum(w["dispatched_trips"] for w in weekly)
+    # ── MTD y baseline MoM POR MES (el dashboard muestra el mes seleccionado) ──
+    key = "qualifying_vehicles" if fleet["entity"] == "vehicle" else "qualifying_drivers"
+    mtd_map = {}
+    for mk, m in months.items():
+        cw = [w for w in m["weeks"] if w["complete"]]
+        wk_rows = [w for w in weekly if w["week"] in {w2["label"] for w2 in cw}]
+        if not wk_rows:
+            continue
+        mstart = min(dt.date.fromisoformat(w["start"]) for w in cw)
+        mend = max(dt.date.fromisoformat(w["end"]) for w in cw)
+        labels_mk = {w["week"] for w in wk_rows}
+        g = sum(w["gmv"] for w in wk_rows); o = sum(w["oh"] for w in wk_rows)
+        f = sum(w["finished_trips"] for w in wk_rows); ds = sum(w["dispatched_trips"] for w in wk_rows)
         nr = calc_net(g, c)
-        qids, aids = set(), set()
-        for wk in coll.values():
-            qids |= {e[idk] for e in wk if e["qualifies"]}
-            aids |= {e[idk] for e in wk if e["finished"] > 0}
-        key = "qualifying_vehicles" if fleet["entity"] == "vehicle" else "qualifying_drivers"
-        out["MTD_JUNE"] = {"gmv": round(g, 2), "net_revenue_after_vat": nr,
-                           "total_guarantee_payout": sum(w["payout"] for w in weekly),
-                           "finished_trips": f, "online_hours": round(o, 2),
-                           "active_cars": len(aids),
-                           "net_eph_after_vat": nr / o if o else 0,
-                           "rph": f / o if o else 0, "fleet_fr": f / ds if ds else 0, key: len(qids)}
-
-        # baseline MoM like-for-like: misma ventana de dias en el mes anterior
-        mtd_start = dt.date.fromisoformat(min(starts))
-        mtd_end = dt.date.fromisoformat(max(ends))
-        n_days = (mtd_end - mtd_start).days + 1
-        prev_first = (mtd_start.replace(day=1) - dt.timedelta(days=1)).replace(day=1)
+        aids = {e[idk] for lbl in labels_mk for e in coll.get(lbl, []) if e["finished"] > 0}
+        qids = {e[idk] for lbl in labels_mk for e in coll.get(lbl, []) if e["qualifies"]}
+        mtd_map[mk] = {"gmv": round(g, 2), "net_revenue_after_vat": nr,
+                       "total_guarantee_payout": round(sum(w["payout"] for w in wk_rows), 2),
+                       "finished_trips": f, "online_hours": round(o, 2), "active_cars": len(aids),
+                       "net_eph_after_vat": nr / o if o else 0,
+                       "rph": f / o if o else 0, "fleet_fr": f / ds if ds else 0, key: len(qids)}
+        # MoM like-for-like: mismos N dias en el mes calendario anterior
+        n_days = (mend - mstart).days + 1
+        prev_first = (mend.replace(day=1) - dt.timedelta(days=1)).replace(day=1)
         prev_end = prev_first + dt.timedelta(days=n_days - 1)
         agg = run_sql(load_query("month_agg.sql", company_id=fleet["id"], pd_id=fleet["pd_id"],
                                  start=prev_first.isoformat(), end=prev_end.isoformat()))
         if agg:
             a = agg[0]; pg = num(a["gmv"]); po = num(a["oh"]); pnr = calc_net(pg, c)
             pf = int(num(a["finished"])); pds = int(num(a["dispatched"]))
-            prev = {"gmv": round(pg, 2), "net_revenue_after_vat": pnr, "total_guarantee_payout": None,
-                    "finished_trips": pf, "online_hours": round(po, 2), "active_cars": int(num(a["active"])),
-                    "utilization": None, "net_eph_after_vat": pnr / po if po else 0,
-                    "rph": pf / po if po else 0, "fleet_fr": pf / pds if pds else 0}
-            month_key = next((k for k, m in months.items()
-                              if any(w.get("complete") for w in m["weeks"])), None)
-            if month_key:
-                out["MONTHS"][month_key]["prevData"] = prev
-                out["MONTHS"][month_key]["prevLabel"] = prev_first.strftime("%B %Y")
+            months[mk]["prevData"] = {"gmv": round(pg, 2), "net_revenue_after_vat": pnr,
+                    "total_guarantee_payout": None, "finished_trips": pf, "online_hours": round(po, 2),
+                    "active_cars": int(num(a["active"])), "utilization": None,
+                    "net_eph_after_vat": pnr / po if po else 0, "rph": pf / po if po else 0,
+                    "fleet_fr": pf / pds if pds else 0}
+            months[mk]["prevLabel"] = prev_first.strftime("%B %Y")
+    out["MTD"] = mtd_map
+    if mtd_map:
+        out["DEFAULT_MONTH"] = list(mtd_map.keys())[-1]  # ultimo mes con datos cerrados
     return out
 
 

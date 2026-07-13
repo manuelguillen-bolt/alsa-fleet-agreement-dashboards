@@ -206,7 +206,8 @@ const PEAK_HOURS = __D.PEAK_HOURS;
 const DRIVER_NAMES = __D.DRIVER_NAMES || {};
 const DRIVERS = __D.DRIVERS;
 const WEEKLY = __D.WEEKLY;
-const MTD_JUNE = __D.MTD_JUNE;
+const MTD = __D.MTD || {};
+const DEFAULT_MONTH = __D.DEFAULT_MONTH || Object.keys(__D.MONTHS || {})[0];
 const DAILY = __D.DAILY;
 const MONTHS = __D.MONTHS;
 // ─── FORMATTERS ───────────────────────────────────────────────────────────────
@@ -831,8 +832,8 @@ function Dashboard() {
     } catch (e) {}
     __lt(x => x + 1);
   };
-  const [month, setMonth] = useState("june");
-  const [selWeek, setSelWeek] = useState(() => defaultWeek(MONTHS.june));
+  const [month, setMonth] = useState(() => DEFAULT_MONTH);
+  const [selWeek, setSelWeek] = useState(() => defaultWeek(MONTHS[DEFAULT_MONTH]));
   const [chartView, setChartView] = useState("weekly");
   const [metrics, setMetrics] = useState({
     gmv: true,
@@ -844,17 +845,17 @@ function Dashboard() {
   const cfg = MONTHS[month];
   const completed = cfg.weeks.filter(w => w.complete);
   const noData = completed.length === 0;
-  const mtd = month === "june" ? MTD_JUNE : null;
+  const mtd = MTD[month] || null;
   const prev = cfg.prevData;
-  const weekly = month === "june" ? WEEKLY : [];
-  const daily = month === "june" ? DAILY : [];
+  const weekly = WEEKLY.filter(w => cfg.weeks.some(x => x.label === w.week));
+  const daily = DAILY.filter(d => cfg.weeks.some(x => d.date >= x.start && d.date <= x.end));
   function handleMonthChange(m) {
     setMonth(m);
     setSelWeek(defaultWeek(MONTHS[m]));
     setRowFilter("all");
     setDriverSearch("");
   }
-  const allDrivers = useMemo(() => month === "june" && selWeek ? DRIVERS[selWeek] || [] : [], [month, selWeek]);
+  const allDrivers = useMemo(() => selWeek ? DRIVERS[selWeek] || [] : [], [month, selWeek]);
   const visDrivers = useMemo(() => {
     let rows = allDrivers;
     if (rowFilter === "qualifying") rows = rows.filter(d => d.qualifies);
@@ -976,7 +977,7 @@ function Dashboard() {
       maxWidth: 1400,
       margin: "0 auto"
     }
-  }, currentWeekInfo && month === "june" && /*#__PURE__*/React.createElement("div", {
+  }, currentWeekInfo && /*#__PURE__*/React.createElement("div", {
     style: {
       background: C.amberBg,
       border: `1.5px solid #FCD34D`,
@@ -1417,7 +1418,7 @@ function Dashboard() {
       flexWrap: "wrap",
       marginBottom: 14
     }
-  }, completed.length > 0 && month === "june" && selWeek && /*#__PURE__*/React.createElement("div", {
+  }, completed.length > 0 && selWeek && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -1530,7 +1531,9 @@ function Dashboard() {
       color: C.muted,
       fontSize: 13
     }
-  }, month === "july" ? t("No completed weeks for July 2026 yet.") : t("No completed week selected.")) : /*#__PURE__*/React.createElement("div", {
+  }, noData ? tf("No completed weeks for {m} yet.", {
+    m: t(cfg.label)
+  }) : t("No completed week selected.")) : /*#__PURE__*/React.createElement("div", {
     style: {
       overflowX: "auto"
     }

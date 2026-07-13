@@ -204,7 +204,8 @@ const PEAK_HOURS = __D.PEAK_HOURS;
 const VEHICLE_PLATES = __D.VEHICLE_PLATES || {};
 const VEHICLES = __D.VEHICLES;
 const WEEKLY = __D.WEEKLY;
-const MTD_JUNE = __D.MTD_JUNE;
+const MTD = __D.MTD || {};
+const DEFAULT_MONTH = __D.DEFAULT_MONTH || Object.keys(__D.MONTHS || {})[0];
 const DAILY = __D.DAILY;
 const MONTHS = __D.MONTHS;
 // ─── FORMATTERS ───────────────────────────────────────────────────────────────
@@ -826,8 +827,8 @@ function Dashboard() {
     } catch (e) {}
     __lt(x => x + 1);
   };
-  const [month, setMonth] = useState("june");
-  const [selWeek, setSelWeek] = useState(() => defaultWeek(MONTHS.june));
+  const [month, setMonth] = useState(() => DEFAULT_MONTH);
+  const [selWeek, setSelWeek] = useState(() => defaultWeek(MONTHS[DEFAULT_MONTH]));
   const [chartView, setChartView] = useState("weekly");
   const [metrics, setMetrics] = useState({
     gmv: true,
@@ -840,15 +841,15 @@ function Dashboard() {
   const prev = cfg.prevData;
   const completed = cfg.weeks.filter(w => w.complete);
   const noData = completed.length === 0;
-  const mtd = month === "june" ? MTD_JUNE : null;
-  const weekly = month === "june" ? WEEKLY : [];
+  const mtd = MTD[month] || null;
+  const weekly = WEEKLY.filter(w => cfg.weeks.some(x => x.label === w.week));
   function handleMonthChange(m) {
     setMonth(m);
     setSelWeek(defaultWeek(MONTHS[m]));
     setRowFilter("all");
     setVehicleSearch("");
   }
-  const allVehicles = useMemo(() => month === "june" && selWeek ? VEHICLES[selWeek] || [] : [], [month, selWeek]);
+  const allVehicles = useMemo(() => selWeek ? VEHICLES[selWeek] || [] : [], [month, selWeek]);
   const visVehicles = useMemo(() => {
     let rows = allVehicles;
     if (rowFilter === "qualifying") rows = rows.filter(v => v.qualifies);
@@ -869,8 +870,8 @@ function Dashboard() {
     return rows;
   }, [allVehicles, rowFilter, vehicleSearch]);
   const chartData = useMemo(() => {
-    if (chartView === "daily" && month === "june") {
-      return DAILY.map(d => ({
+    if (chartView === "daily") {
+      return DAILY.filter(d => cfg.weeks.some(x => d.date >= x.start && d.date <= x.end)).map(d => ({
         ...d,
         label: fmtDate(d.date),
         fr_pct: (d.fr || 0) * 100,
@@ -983,7 +984,7 @@ function Dashboard() {
       maxWidth: 1400,
       margin: "0 auto"
     }
-  }, currentWeekInfo && month === "june" && /*#__PURE__*/React.createElement("div", {
+  }, currentWeekInfo && /*#__PURE__*/React.createElement("div", {
     style: {
       background: C.amberBg,
       border: `1.5px solid #FCD34D`,
@@ -1415,7 +1416,7 @@ function Dashboard() {
       flexWrap: "wrap",
       marginBottom: 14
     }
-  }, completed.length > 0 && month === "june" && selWeek && /*#__PURE__*/React.createElement("div", {
+  }, completed.length > 0 && selWeek && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -1528,7 +1529,9 @@ function Dashboard() {
       color: C.muted,
       fontSize: 13
     }
-  }, month === "july" ? t("No completed weeks for July 2026 yet.") : t("No completed week selected.")) : /*#__PURE__*/React.createElement("div", {
+  }, noData ? tf("No completed weeks for {m} yet.", {
+    m: t(cfg.label)
+  }) : t("No completed week selected.")) : /*#__PURE__*/React.createElement("div", {
     style: {
       overflowX: "auto"
     }
