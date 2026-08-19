@@ -87,15 +87,24 @@ def build_fleet(fleet):
     c = cfg["CONTRACT"]
     idk = fleet["id_key"]
 
-    # Calendario dinamico: una semana esta "vencida" (completa) cuando ya termino.
-    # Asi cada lunes el dashboard avanza solo a la ultima semana cerrada.
+    # Calendario dinamico AUTOGENERADO (semanas ISO Lun-Dom) desde ORIGIN hasta ~2
+    # semanas despues de hoy. No hay que extenderlo nunca a mano (junio, agosto, 2027...).
+    # Una semana esta "vencida" (completa) cuando ya termino (fin < hoy); la que
+    # contiene hoy esta "en curso". Etiqueta = W{numero de semana ISO}. Mes = mes del domingo.
     today = dt.date.today()
-    months = json.loads(json.dumps(cfg["MONTHS"]))
-    for m in months.values():
-        for w in m["weeks"]:
-            ws = dt.date.fromisoformat(w["start"]); we = dt.date.fromisoformat(w["end"])
-            w["complete"] = we < today
-            w["inProgress"] = ws <= today <= we
+    ORIGIN = dt.date(2026, 6, 1)   # inicio del acuerdo (primera semana = W23)
+    months = {}
+    d = ORIGIN - dt.timedelta(days=ORIGIN.weekday())          # lunes de la semana de ORIGIN
+    end_limit = today + dt.timedelta(days=14)
+    while d <= end_limit:
+        ws, we = d, d + dt.timedelta(days=6)
+        mkey = we.strftime("%B").lower()                     # 'june', 'july', 'august'...
+        months.setdefault(mkey, {"label": we.strftime("%B %Y"), "weeks": []})
+        months[mkey]["weeks"].append({
+            "label": "W%d" % ws.isocalendar()[1],
+            "start": ws.isoformat(), "end": we.isoformat(),
+            "complete": we < today, "inProgress": ws <= today <= we})
+        d += dt.timedelta(days=7)
     weeks_meta = {w["label"]: w for m in months.values() for w in m["weeks"] if w["complete"]}
 
     coll, weekly = {}, []
